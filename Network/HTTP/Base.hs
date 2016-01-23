@@ -306,13 +306,18 @@ data Request a =
 -- the body separately where possible.
 instance Show (Request a) where
     show req@(Request u m h _) =
-        show m ++ sp ++ alt_uri ++ sp ++ ver ++ crlf
+        show m ++ sp ++ uri ++ sp ++ ver ++ crlf
         ++ foldr (++) [] (map show (dropHttpVersion h)) ++ crlf
         where
             ver = fromMaybe httpVersion (getRequestVersion req)
-            alt_uri = show $ if null (uriPath u) || head (uriPath u) /= '/' 
+            alt_uri = show $ if null (uriPath u) || head (uriPath u) /= '/'
                         then u { uriPath = '/' : uriPath u } 
                         else u
+            a = fromMaybe (URIAuth "" "" "")  (uriAuthority u)
+            con_uri = uriAuthToString a
+            uri = if m == CONNECT
+                    then con_uri
+                    else alt_uri
 
 instance HasHeaders (Request a) where
     getHeaders = rqHeaders
@@ -573,8 +578,9 @@ matchResponse rqst rsp =
         (5,_,_) -> ans
         (a,b,c) -> DieHorribly ("Response code " ++ map intToDigit [a,b,c] ++ " not recognised")
     where
-        ans | rqst == HEAD = Done
-            | otherwise    = ExpectEntity
+        ans | rqst == HEAD    = Done
+            | rqst == CONNECT = Done
+            | otherwise       = ExpectEntity
         
 
         
